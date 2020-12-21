@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+	<style>
+	.inactive-export{display:none}
+	#expformat{max-width:96px}
+	.form-inline label{padding:6px 2px 0px 16px}
+	.column_title{font-size:14px;color:black}
+	.report_column{display:none}
+	.column_display{font-size:11px;word-break:break-all;word-wrap:break-word}
+	</style>
+	<script>
+	var url = "";
+	addLoadEvent(function() {
+
+		url = "/"+table+"_list.do?sysparm_userpref."+table+"_list.view=report_view&amp;sysparm_query=opened_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe";
+
+		var add_class = 'active-export';
+		var remove_class = 'inactive-export';
+
+		//table comes from the dynamic widget: Report Filtering
+		switch(table) {
+			case 'incident':
+				$j('#inc_exp').addClass(add_class).removeClass(remove_class);
+				break;
+			case 'problem':
+				$j('#prb_exp').addClass(add_class).removeClass(remove_class);
+				break;
+			case 'change_request':
+				$j('#chg_exp').addClass(add_class).removeClass(remove_class);
+				break;
+			case 'u_cmdb_task_chg':
+				$j('#chg_ci_exp').addClass(add_class).removeClass(remove_class);
+
+				//as we have a dbview, field changes to: chg_opened_by
+				url = "/"+table+"_list.do?sysparm_userpref."+table+"_list.view=report_view&amp;sysparm_query=chg_opened_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe";
+				break;
+			case 'u_cmdb_task_service_chg':
+				$j('#chg_ci_exp').addClass(add_class).removeClass(remove_class);
+
+				//as we have a dbview, field changes to: chg_opened_by
+				url = "/"+table+"_list.do?sysparm_userpref."+table+"_list.view=report_view&amp;sysparm_query=chg_opened_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe";
+				break;
+			case 'sc_req_item':
+				$j('#req_exp').addClass(add_class).removeClass(remove_class);
+				break;
+			default: alert("Table not in list for Export Report.");
+		}
+		$j('.'+remove_class).remove(); //we remove all inactive ones
+
+	});
+
+	function exportReport() {
+		var format = gel('expformat') != null &amp;&amp; gel('expformat').value ? gel('expformat').value : "unload_excel_xlsx";
+		var url = "";
+		var columns = "";
+		var dialog = new GwtPollDialog(table,final_filter,1,'report_view',format);
+		dialog.execute();
+	}
+	</script>
+		<div class="form-inline">
+			<div id="inc_exp" class='col-md-6 inactive-export'>
+				<g:evaluate var="jvar_inc_fields" object="true" jelly="true">
+					var objs = [];
+					var gr= new GlideRecord('sys_ui_list');
+					gr.addEncodedQuery('name=incident^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^sys_userDYNAMIC90d1921e5f510100a9ad2572f2b477fe');
+					gr.query();
+					if(gr.getRowCount() == 0) {
+						gr= new GlideRecord('sys_ui_list');
+						gr.addEncodedQuery('sys_user.nameISEMPTY^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^name=incident');
+						gr.query();
+					}
+					while(gr.next()){
+						var grElem= new GlideRecord('sys_ui_list_element');
+						grElem.addQuery("list_id.sys_id",gr.sys_id);
+						grElem.orderBy("position");
+						grElem.query();
+
+						while(grElem.next()){
+							objs.push({'sys_id': grElem.getValue('element')+',','element':grElem.getDisplayValue('element')+', '});
+						}
+					}
+					objs;
+				</g:evaluate>
+				<span class="column_title">Columns by order: </span>
+				<span class="column_display">
+					<j:forEach var="jvar_inc_fields" items="${jvar_inc_fields}"><span class="report_column">${jvar_inc_fields.sys_id}</span>${jvar_inc_fields.element}</j:forEach>
+				 </span>
+			</div>
+			<div id="prb_exp" class='col-md-6 inactive-export'>
+				<g:evaluate var="jvar_prb_fields" object="true" jelly="true">
+					var objs = [];
+					var gr= new GlideRecord('sys_ui_list');
+					gr.addEncodedQuery('name=problem^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^sys_userDYNAMIC90d1921e5f510100a9ad2572f2b477fe');
+					gr.query();
+					if(gr.getRowCount() == 0) {
+						gr= new GlideRecord('sys_ui_list');
+						gr.addEncodedQuery('sys_user.nameISEMPTY^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^name=problem');
+						gr.query();
+					}
+					while(gr.next()){
+						var grElem= new GlideRecord('sys_ui_list_element');
+						grElem.addQuery("list_id.sys_id",gr.sys_id);
+						grElem.orderBy("position");
+						grElem.query();
+
+						while(grElem.next()){
+							objs.push({'sys_id': grElem.getValue('element')+',','element':grElem.getDisplayValue('element')+', '});
+						}
+					}
+					objs;
+				</g:evaluate>
+				<span class="column_title">Columns by order: </span>
+				<span class="column_display">
+					<j:forEach var="jvar_prb_fields" items="${jvar_prb_fields}"><span class="report_column">${jvar_prb_fields.sys_id}</span>${jvar_prb_fields.element}</j:forEach>
+				</span>
+			</div>
+			<div id="chg_exp" class='col-md-6 inactive-export'>
+				<g:evaluate var="jvar_chg_fields" object="true" jelly="true">
+					var objs = [];
+					var gr= new GlideRecord('sys_ui_list');
+					gr.addEncodedQuery('name=change_request^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^sys_userDYNAMIC90d1921e5f510100a9ad2572f2b477fe');
+					gr.query();
+					if(gr.getRowCount() == 0) {
+						gr= new GlideRecord('sys_ui_list');
+						gr.addEncodedQuery('sys_user.nameISEMPTY^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^name=change_request');
+						gr.query();
+					}
+					while(gr.next()){
+						var grElem= new GlideRecord('sys_ui_list_element');
+						grElem.addQuery("list_id.sys_id",gr.sys_id);
+						grElem.orderBy("position");
+						grElem.query();
+
+						while(grElem.next()){
+							objs.push({'sys_id': grElem.getValue('element')+',','element':grElem.getDisplayValue('element')+', '});
+						}
+					}
+					objs;
+				</g:evaluate>
+				<span class="column_title">Columns by order: </span>
+				<span class="column_display">
+					<j:forEach var="jvar_chg_fields" items="${jvar_chg_fields}"><span class="report_column">${jvar_chg_fields.sys_id}</span>${jvar_chg_fields.element}</j:forEach>
+				</span>
+			</div>
+			<div id="chg_ci_exp" class='col-md-6 inactive-export'>
+				<g:evaluate var="jvar_chg_ci_fields" object="true" jelly="true">
+					var objs = [];
+					var gr= new GlideRecord('sys_ui_list');
+					gr.addEncodedQuery('name=u_cmdb_task_chg^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^sys_userDYNAMIC90d1921e5f510100a9ad2572f2b477fe');
+					gr.query();
+					if(gr.getRowCount() == 0) {
+						gr= new GlideRecord('sys_ui_list');
+						gr.addEncodedQuery('sys_user.nameISEMPTY^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^name=u_cmdb_task_chg');
+						gr.query();
+					}
+					while(gr.next()){
+						var grElem= new GlideRecord('sys_ui_list_element');
+						grElem.addQuery("list_id.sys_id",gr.sys_id);
+						grElem.orderBy("position");
+						grElem.query();
+
+						while(grElem.next()){
+							objs.push({'sys_id': grElem.getValue('element')+',','element':grElem.getDisplayValue('element')+', '});
+						}
+					}
+					objs;
+				</g:evaluate>
+				<span class="column_title">Columns by order: </span>
+				<span class="column_display">
+					<j:forEach var="jvar_chg_ci_fields" items="${jvar_chg_ci_fields}"><span class="report_column">${jvar_chg_ci_fields.sys_id}</span>${jvar_chg_ci_fields.element}</j:forEach>
+				</span>
+			</div>
+			<div id="req_exp" class='col-md-6 inactive-export'>
+				<g:evaluate var="jvar_req_fields" object="true" jelly="true">
+					var objs = [];
+					var gr= new GlideRecord('sys_ui_list');
+					gr.addEncodedQuery('name=sc_req_item^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^sys_userDYNAMIC90d1921e5f510100a9ad2572f2b477fe');
+					gr.query();
+					if(gr.getRowCount() == 0) {
+						gr= new GlideRecord('sys_ui_list');
+						gr.addEncodedQuery('sys_user.nameISEMPTY^view=68f6ad5c1beb98d08e6c553d6e4bcb3f^name=sc_req_item');
+						gr.query();
+					}
+					while(gr.next()){
+						var grElem= new GlideRecord('sys_ui_list_element');
+						grElem.addQuery("list_id.sys_id",gr.sys_id);
+						grElem.orderBy("position");
+						grElem.query();
+
+						while(grElem.next()){
+							objs.push({'sys_id': grElem.getValue('element')+',','element':grElem.getDisplayValue('element')+', '});
+						}
+					}
+					objs;
+				</g:evaluate>
+				<span class="column_title">Columns by order: </span>
+				<span class="column_display">
+					<j:forEach var="jvar_req_fields" items="${jvar_req_fields}"><span class="report_column">${jvar_req_fields.sys_id}</span>${jvar_req_fields.element}</j:forEach>
+				</span>
+			</div>
+			
+			<div class="col-md-6">
+				<div class="panel-body">
+					<select id='expformat' class='form-control'>
+						<option value="unload_excel_xlsx" selected="selected">Excel</option>
+						<option value="unload_pdflandscape">PDF - Landscape</option>
+						<option value="unload_pdf+landscape">PDF - Landscape (include detail)</option>
+						<option value="unload_pdf">PDF - Portrait</option>
+						<option value="unload_pdf+">PDF - Portrait (include detail)</option>
+						<option value="unload_csv">CSV</option>
+						<option value="unload_xml">XML</option>
+						<option value="unload_json">JSON</option>
+					</select>
+					<input id='export-report' type='button' class='form-control' value='Export' onclick='exportReport()' /><br />
+					To arrange columns, click on the gear symbol <a href='' style='font-size:14px;' onclick='window.open(url,"_blank");return false;'>here</a>.  (reload widget afterwards)
+				</div>
+			</div>
+			
+		</div>
+</j:jelly>
