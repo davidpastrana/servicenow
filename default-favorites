@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+	<style>
+	.select-checkbox option::before{font-family:-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;content:'□';width:1.3em;text-align:center;display:inline-block;}
+	.select-checkbox option:checked::before{content:"\2713";}
+	#sel_fav{color:#303a46;background-color:rgba(255,255,255,0.45);border-color:#bec1c6;min-height:200px;}
+	</style>
+	<select id='sel_fav' multiple='' class='select-checkbox form-control' onchange='reload()'>
+		<option value="">All</option>
+		<option value="active=true^assigned_toISEMPTY^assignment_groupDYNAMICd6435e965f510100a9ad2572f2b47744">To be assigned to my groups</option>
+		<option value="active=true^assignment_groupDYNAMICd6435e965f510100a9ad2572f2b47744">Assigned to my groups</option>
+		<option value="active=false^assignment_groupDYNAMICd6435e965f510100a9ad2572f2b47744">Closed by my groups</option>
+		<option value="assigned_toDYNAMIC90d1921e5f510100a9ad2572f2b477fe">Assigned to me</option>
+		<option value="opened_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe">Opened by me</option>
+		<option value="closed_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe">Closed by me</option>
+		<option value="assignment_group.u_managersLIKEjavascript:gs.getUser().getManagerID()">Managed by my manager</option>
+		<option value="assignment_group.u_managersLIKEjavascript:gs.getUserID()">Managed by me</option>
+	</select>
+</j:jelly>
