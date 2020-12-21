@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<j:jelly trim='false' xmlns:j='jelly:core' xmlns:g='glide' xmlns:j2='null' xmlns:g2='null'>
+<script>
+	function resetFilters() {
+	
+		//clear customised selector fields	
+		$j('.mult-disable-search,.mult-enable-search').multiselect('clearSelection'); 	
+
+		//clear customised input fields
+		$j('#sel_shortdesc').val('');
+		
+		//remove customised filter
+		my_dash.removeFilter();
+	
+		//remove all interactive filters from ServiceNow
+		SNC.canvas.interactiveFilters.removeDefaultValue(my_msg.id,false);
+	
+		//trigger Reset filters from the list menu
+		$j('.dropdown-menu li:nth-last-child(1) a').trigger('click');
+	
+		//reload window
+		//var w = top.gsft_main || top;
+		//w.location.reload();
+	}
+		
+	function displayFilters() {
+		var url = '/'+table+'_list.do?sysparm_query='+final_filter;
+		window.open(url,'_blank');
+	}
+</script>
+<button id='viewTickets' type='button' class='btn btn-default' onclick='displayFilters()'>Advanced filtering</button>
+<button id='resetFilter' type='button' class='btn btn-default' onclick='resetFilters()'>Reset filters</button>
+</j:jelly>
