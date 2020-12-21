@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+	<style>.counter{display:block;margin:7px 0px;color:#969696}.sel_active{float:right;margin:7px}.refresh-select{width:auto;display:inline}</style>
+	<script>
+		var r_sec = 0;
+		var t_now = null;
+		var t_next = null;
+		var t_last = null;
+		var myInterval = null;
+
+		//auto read seconds on selector change
+		function readTime() {
+			r_sec = gel('sel_time').value;
+			localStorage['saved_time'] = r_sec;
+			clearInterval(myInterval);
+			reloadDashboard();
+		}
+		
+		//auto read active (true/false) on selector change
+		function readActive() {
+			r_active = gel('sel_active').value;
+			localStorage['saved_active'] = r_active;
+			clearInterval(myInterval);
+			reloadDashboard();
+		}
+		
+		//refresh now on button click
+		function refreshNow() {
+			$j('.dropdown-menu li:nth-last-child(2) a').trigger('click'); //click Refresh button (a js call could be better)
+			clearInterval(myInterval); //always clear interval after refresh
+		}
+		
+		//run interval every 1 second
+		function runInterval(){
+
+			if(t_now &lt; t_next) {
+				// the definition of "('0' + t_X).slice(-2)" is there to print the leading zeros in front
+				$j('#refresh .counter').text('Now: '+t_now.getHours()+':'+ ('0'+t_now.getMinutes()).slice(-2) +':'+ ('0'+t_now.getSeconds()).slice(-2) +' | Next: '+t_next.getHours()+':'+('0'+ t_next.getMinutes()).slice(-2) +':'+ ('0'+t_next.getSeconds()).slice(-2) +' | Last: '+t_last.getHours()+':'+ ('0'+t_last.getMinutes()).slice(-2) +':'+ ('0'+t_last.getSeconds()).slice(-2));
+		
+				//console.log('Now: '+t_now.getSeconds()+', Next: '+t_next.getSeconds());
+		
+				t_now.setSeconds(t_now.getSeconds() + 1);
+			} else {
+				//we refresh all widgets
+				$j('.dropdown-menu li:nth-last-child(2) a').trigger('click'); //click Refresh button (a js call could be better)
+				clearInterval(myInterval); //always clear interval after refresh
+				
+				//console.log('we refresh dashboard...');
+			}
+		}
+		
+		function reloadDashboard() {
+			//read time in seconds
+		    r_sec = localStorage['saved_time'] || gel('sel_time').value; //read saved option from cache after refresh or from the selector
+			$j('#sel_time').val(r_sec); //we set it to the selector
+		
+			//read active, true or false
+			r_active = localStorage['saved_active'] || gel('sel_active').value; //read saved option from cache after refresh or from the selector
+			$j('#sel_active').val(r_active); //we set it to the selector
+		
+			if(r_active == 'true') {
+				t_now = new Date(Date.now());
+				t_next = new Date(t_now.getTime());
+				t_next.setSeconds(t_next.getSeconds() + parseInt(r_sec)); //we sum read seconds to calculate next refresh
+				t_last = new Date(t_now.getTime()); //save last run, as t_now is displayed on real time. eg. t_now=t_now+1
+				myInterval = setInterval(runInterval, 1000); //run every 1 sec.
+			} else {
+				$j('#refresh .counter').text('Stopped. Set it to active to start.');
+			}
+		}
+		
+		$j('#sel_time').val('60'); //default option is 60 seconds
+		reloadDashboard();
+
+		//if window tab is active (for optimal performance)
+		$j(window).focus(function() {
+			clearInterval(myInterval);
+			reloadDashboard();
+		});
+
+		//if window tab is inactive (for optimal performance)
+		$j(window).blur(function() {
+			clearInterval(myInterval);
+			$j('#refresh .counter').text('Stopped. Tab was inactive.');
+		});
+	</script>
+	<div id='refresh' class='panel-body'>
+		Refresh:
+		<select id='sel_time' class='form-control refresh-select' onchange='readTime()'>
+			<option value='30'>30 sec.</option>
+			<option value='60'>1 min.</option>
+			<option value='300'>5 min.</option>
+			<option value='900'>15 min.</option>
+			<option value='1800'>30 min.</option>
+			<option value='2700'>45 min.</option>
+		</select>
+		<button type='button' class='btn btn-default' onclick='refreshNow()'>Refresh now</button>
+		<span class='counter'></span>
+		<span class='sel_active'>
+			Active:
+			<select id='sel_active' class='form-control refresh-select' onchange='readActive()'>
+				<option value='true'>true</option>
+				<option value='false'>false</option>
+			</select>
+		</span>
+	</div>
+</j:jelly>
