@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+	<script>
+	var url = "";
+	addLoadEvent(function() {
+
+		//table comes from the dynamic widget: Report Filtering
+		url = "/"+table+"_list.do?sysparm_userpref."+table+"_list.view=report_view&amp;sysparm_query=opened_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe";
+
+		//as we have a dbview, field changes to: chg_opened_by
+		if(table == 'u_cmdb_task_chg') {
+			url = "/"+table+"_list.do?sysparm_userpref."+table+"_list.view=report_view&amp;sysparm_query=chg_opened_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe";
+		}
+	
+	});
+	
+	function createSchedule() {
+		
+		var filter = final_filter;
+		var columns = $j('.report_column').text();
+		var run = gel('reprun') != null &amp;&amp; gel('reprun').value ? gel('reprun').value : "monthly";
+		var hour = gel('rephour') != null &amp;&amp; gel('rephour').value ? gel('rephour').value : "07";
+		var minute = gel('repminute') != null &amp;&amp; gel('repminute').value ? gel('repminute').value : "05";
+		var format = gel('repformat') != null &amp;&amp; gel('repformat').value ? gel('repformat').value : "XLSX";
+		var title = gel('reptitle') != null &amp;&amp; gel('reptitle').value ? gel('reptitle').value : "Default report for "+user;
+		var pdf_detail = false;
+		
+		switch(format) {
+			case 'unload_excel_xlsx':
+				format = 'XLSX';
+				break;
+			case 'unload_pdflandscape':
+				format = 'PDF-landscape';
+				break;
+			case 'unload_pdf':
+				format = 'PDF';
+				break;
+			case 'unload_pdf+landscape':
+				format = 'PDF-landscape';
+				pdf_detail = true;
+				break;
+			case 'unload_pdf+':
+				format = 'PDF';
+				pdf_detail = true;
+				break;
+			case 'unload_csv':
+				format = 'CSV';
+				break;
+			default:
+				alert('No option defined.');
+		};
+		
+		var repUtils = new GlideAjax('ReportUtils');
+		repUtils.addParam('sysparm_name','createScheduledJob');
+		repUtils.addParam('sysparm_title', title);
+		repUtils.addParam('sysparm_table', table);
+		repUtils.addParam('sysparm_filter', filter);
+		repUtils.addParam('sysparm_columns', columns);
+		repUtils.addParam('sysparm_run', run);
+		repUtils.addParam('sysparm_time', hour+':'+minute+':00');
+		repUtils.addParam('sysparm_format', format);
+		repUtils.addParam('sysparm_pdfdetail', pdf_detail);
+
+		repUtils.getXMLAnswer(scheduleCallback);
+	}
+		
+	function scheduleCallback(serverResp) {
+		try {
+			var resp = JSON.parse(serverResp);
+		
+			alert('\nScheduler "'+resp.output.title+'" succesfully saved.\n\nIn tab my scheduled reports, you can configure any of your reports/schedulers.');
+			//window.location.reload();
+			if(resp == null) { return; }
+
+			var data = resp.output.data;
+			var total = resp.output.total;
+
+			if(resp.success) {
+				var selection = [];
+				for(var i=0; i &lt; total; i++) {
+					selection.push(data[i].sys_id);
+				}
+			}
+		} catch(errorCallbackFn) {
+			console.log("our error: "+JSON.stringify(errorCallbackFn)+" or "+errorCallbackFn);
+			alert("Some error ocurred. Please to reload the page. error: "+JSON.stringify(errorCallbackFn));
+		}
+	}
+	</script>
+		<div class="form-inline">
+		  <j:if test="${gs.hasRole('report_scheduler')}">
+			<div class="col-md-6">
+				<div class="panel-body">
+					<input id="reptitle" class="form-control" style="width:200px;" type="text" placeholder="Report name" />
+					<select id='reprun' style='width:auto;' class='form-control'>
+						<option value="Monthly" selected="selected">Monthly</option>
+						<option value="Weekly">Weekly</option>
+						<option value="Daily">Daily</option>
+					</select>
+					<span style="white-space: nowrap">
+					<select id="rephour" style="width:auto;" class="form-control"><option value="0">00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7" selected="selected">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>:
+					<select id="repminute" style="width:auto;" class="form-control"><option value="0">00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5" selected="selected">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+					</span>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="panel-body">
+						<select id='repformat' class='form-control'>
+						<option value="unload_excel_xlsx" selected="selected">Excel</option>
+						<option value="unload_pdflandscape">PDF - Landscape</option>
+						<option value="unload_pdf+landscape">PDF - Landscape (include detail)</option>
+						<option value="unload_pdf">PDF - Portrait</option>
+						<option value="unload_pdf+">PDF - Portrait (include detail)</option>
+						<option value="unload_csv">CSV</option>
+						</select>
+						<input id="createSchedule" type="button" class='form-control' value="Create" onclick="createSchedule()" /><br />
+						To arrange columns, click on the gear symbol <a href='' style='font-size:14px;' onclick='window.open(url,"_blank");return false;'>here</a>.
+					</div>
+				</div>
+		</j:if>
+		<j:if test="${!gs.hasRole('report_scheduler')}">
+			<div class="col-md-6">
+			Restricted usage only for users with report_scheduler role.
+			</div>
+		</j:if>
+		</div>
+</j:jelly>
