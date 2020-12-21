@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+	<script>
+	function createFavorite() {
+		var favtitle = gel('favtitle') != null &amp;&amp; gel('favtitle').value ? gel('favtitle').value : "Default title for your incidents";
+		var repUtils = new GlideAjax('ReportUtils');
+		repUtils.addParam('sysparm_name','createFavorite');
+		repUtils.addParam('sysparm_filter','/'+table+'_list.do?sysparm_query='+final_filter);
+		repUtils.addParam('sysparm_title',favtitle);
+		repUtils.getXMLAnswer(favoriteCallback);
+	}
+		
+	function favoriteCallback(serverResp) {
+		try {
+			var resp = JSON.parse(serverResp);
+			//console.log("JSON Response: "+JSON.stringify(resp));
+		
+			//reload full screen
+			window.top.location.reload();
+		
+			if(resp == null) { return; }
+
+				var data = resp.output.data;
+				var total = resp.output.total;
+
+				if(resp.success) {
+					var selection = [];
+					for(var i=0; i &lt; total; i++) {
+						selection.push(data[i].sys_id);
+					}
+					$j('button.btn.header-icon.icon-refresh').trigger('click');
+			}
+		} catch(errorCallbackFn) {
+		}
+	}
+	</script>
+	<div class='col-md-12'>
+		<div class='panel-body' style='margin-top:10px'>
+			<input id='favtitle' class='form-control' type='text' placeholder='Favorite title for the left menu' />
+			<button id='createFavorite' type='button' class='form-control' onclick='createFavorite()'>Create Favorite</button>
+		</div>
+	</div>
+</j:jelly>
