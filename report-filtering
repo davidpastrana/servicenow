@@ -1,0 +1,1053 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<j:jelly trim='false' xmlns:j='jelly:core' xmlns:g='glide' xmlns:j2='jelly:core' xmlns:g2='glide'>
+<!--
+	Name: Report Filtering
+	Description: Custom widget to filter all underlying data inside a Dashbaord
+	Enable filtering: Edit Widget (gear icon) and enable option 'Follow interactive filter'.
+	Latest update: Allows Piecharts to act as interactive filters and combines interactive filters to custom ones via own debug_filter
+	Important to know: Dashboard tabs use their sys_id reference, used to display or hide any div content.
+	Author: David Rodriguez-Pastrana Parareda (sy073)
+	Date: 03.12.2020
+	Version: 2.0
+-->
+	<!-- Bootstrap js library (only for multiselectors): System UI > UI Scripts > bootstrap-multiselect (Copy only name) -->
+	<g:requires name='bootstrap-multiselect.jsdbx' />
+	
+	<!-- Bootstrap stylesheet (only for multiselectors): Content Management > Style Sheets > bootstrap-multiselect (Copy sys_id from menu) -->
+	<link rel='stylesheet' href='fe3b8baadbfe14d0f0ada7c74896191f.cssdbx' />
+	<style>
+	#header_display_filter{overflow:scroll;float:left;height:40px;position:absolute;left:230px;right:180px;overflow:hidden;overflow-y:scroll}
+	#debug_parsed_filter{width:100%;border:none;color:rgb(171,168,168)}
+	.panel-body{padding:0px}
+	<!-- Used for debug purposes (see all widget filters), display block/none to enable/disable -->
+	.debug_filter{display:none} <!-- block/none -->
+	</style>
+	<html>
+  	<body>
+	<textarea id='display_dashboard_messages2' class='debug_filter' readonly='true' style='width:100%;min-height:80px'></textarea>
+	<textarea id='debug_parsed_filter' class='debug_filter' />
+	<script>
+	var table = '';
+	var final_filter = '';
+
+	var my_msg = {};
+	var my_dash = new DashboardMessageHandler('custom-dashboard');
+		
+	//div where to print the final_filter
+	if(!$j('#header_display_filter').length){
+		$j('.navbar-actions').after('<div id='header_display_filter'></div>');
+	}
+	
+	var tabids = [];
+	var active_tab = '';
+	$j('#snCanvasTablist li').each(function() {
+		id = $j(this).attr('id');
+		tabids.push(id);
+		if($j(this).hasClass('active')) {
+			active_tab = id;
+		}
+	});
+
+	var add_class = 'active-tab';
+	var remove_class = 'inactive-tab';
+	switch(active_tab) {
+		case '8473d5251b6a94108e6c553d6e4bcb5c':
+			$j('#inc').addClass(add_class).removeClass(remove_class);
+			table = 'incident';
+			break;
+		case 'ee3ad2fa1be614508e6c553d6e4bcb99':
+			$j('#prb').addClass(add_class).removeClass(remove_class);
+			table = 'problem';
+			break;
+		case '014adefa1be614508e6c553d6e4bcbc6':
+			$j('#chg').addClass(add_class).removeClass(remove_class);
+			table = 'change_request';
+			break;
+		case '960efa771bef58108e6c553d6e4bcbf1':
+			$j('#chg_ci').addClass(add_class).removeClass(remove_class);
+			table = 'u_cmdb_task_chg';
+			break;
+		case '95c49942dba8a05c99f22a8cd396197a':
+			$j('#chg_ci').addClass(add_class).removeClass(remove_class);
+			table = 'u_cmdb_task_service_chg';
+			break;
+		case 'ee4a123e1be614508e6c553d6e4bcb58':
+			$j('#req').addClass(add_class).removeClass(remove_class);
+			table = 'sc_req_item';
+			break;
+		case 'c0a065cb1b5f9c908e6c553d6e4bcb75':
+			$j('#lg').addClass(add_class).removeClass(remove_class);
+			table = 'metric_instance';
+			break;
+		case '2e6ac66ddba31414f0ada7c7489619cb':
+			$j('#hf').addClass(add_class).removeClass(remove_class);
+			table = 'u_incident_join_short_history_log';
+			break;
+
+		default: alert('Tab id not defined for active_tab.');
+	}
+	$j('.'+remove_class).remove();
+	my_msg.table = table;
+
+	/*  DashboardMessageDisplay: used to collect all custom, not custom filters landing in our dashboard. eg. custom selectors, pie charts, interactive filters as Solution function, open date, etc.
+		We have our custom selector filters saved in 'my_msg.filter' by calling the function getAllFilters().
+		And out of the box widget filters are just printed by using function 'combineFilterAndPrint'.
+	*/
+	var def_filter = SNC.canvas.interactiveFilters.defaultValues;
+
+	//getting the default filter saved on screen
+	var filter = '[';
+	Object.keys(def_filter).forEach(function(key,value) {
+		filter += '{"id":"'+key+'","'+key+'":';
+		filter += JSON.stringify(def_filter[key]);
+		filter += '},';
+	});
+	filter = filter.replace(/,$/,''); //remove if a last comma
+	filter += ']';
+
+	//all filters used on any widget are collected inside this div
+	var DashboardMessageDisplay = Class.create({
+		initialize: function(id) {
+			this._id = id;
+			this._dashBoardMessageHandler = new DashboardMessageHandler(this._id, this.refresh.bind(this));
+			this._dashBoardMessageHandler.setCurrentFilters(filter);
+		},
+			
+		refresh : function() {
+			$j('#' + this._id).val(JSON.stringify(this._dashBoardMessageHandler.getCurrentFilters()));
+		}
+	});
+	var display = new DashboardMessageDisplay('display_dashboard_messages2');
+	display.refresh();
+
+	//service now load method
+	addLoadEvent(onLoad);
+		
+	//display pretty filter next to the dashboard name
+	combineFilterAndPrint();
+		
+	//method to combine and print all widget filters
+	function combineFilterAndPrint() {
+		final_filter = '';
+		var json = gel('display_dashboard_messages2') != null &amp;&amp; gel('display_dashboard_messages2').value ? JSON.parse(gel('display_dashboard_messages2').value) : '';
+		
+		//console.log('all filters: '+JSON.stringify(json));
+
+		var temp_filter = '';
+		for(var i=0; i &lt; json.length; i++) {
+			for(var j=0; j &lt; json[i].length; j++) {
+				//used for open date widget, which contains several table names
+				if(json[i][j].table == table &amp;&amp; json[i][j].filter != '' &amp;&amp; json[i][j].filter != temp_filter) {
+					final_filter+='^'+json[i][j].filter;
+					temp_filter = json[i][j].filter;
+				}
+			}
+		}
+		final_filter = final_filter.substring(1);
+		//console.log('final_filter: '+final_filter);
+		
+		var disp = final_filter.split('^');
+		var new_disp = '';
+		var val = '';
+		for(var i=0; i &lt; disp.length; i++) {
+			var st = disp[i];
+			if(st.substr(0,2) == 'OR') {
+				st = st.replace('OR', ' or ');
+			}
+			//if we have any date with those special JS symbols
+			if(st.includes('sys_created_on')) {
+				total = st.split(',').length;
+				arr = st.split(',');
+				for(var j=0; j &lt; total; j++) {
+					val = arr[j].split('@')[0];
+					new_disp += val.replace('sys_created_onON','created=').replace('chg_','');
+				}
+			} else if(st.includes('u_target_date')) {
+				total = st.split(',').length;
+				arr = st.split(',');
+				for(var j=0; j &lt; total; j++) {
+					val = arr[j].split('@')[0];
+					new_disp += val.replace('u_target_dateON','target_date=');
+				}
+			} else if(st.includes('start_date')) {
+				total = st.split(',').length;
+				arr = st.split(',');
+				for(var j=0; j &lt; total; j++) {
+					val = arr[j].split('@')[0];
+					new_disp += val.replace('start_dateON','start_date=').replace('chg_','');
+				}
+			} else if(st.includes('end_date')) {
+				total = st.split(',').length;
+				arr = st.split(',');
+				for(var j=0; j &lt; total; j++) {
+					val = arr[j].split('@')[0];
+					new_disp += val.replace('end_dateON','end_date=').replace('chg_','');
+				}
+			//if we have a customized select filter
+			} else if(st.includes('state')) {
+				val = st.split('=')[1];
+				new_disp += st.replace(val,$j('#sel_state option[value='+val+']').text()).replace('chg_','');
+			} else if(st.includes('priority')) {
+				val = st.split('=')[1];
+				new_disp += st.replace(val,$j('#sel_prio option[value='+val+']').text()).replace('chg_','');
+			} else if(st.includes('u_environmentLIKE')) {
+				val = st.split('LIKE')[1];
+				new_disp += st.replace(val,$j('#sel_env option[value='+val+']').text()).replace('u_environmentLIKE','environment contains ');
+			} else if(st.includes('u_environmentISEMPTY')) {
+				new_disp += st.replace('u_environmentISEMPTY','environment is None');
+			} else if(st.includes('u_visible_to_companiesLIKE')) {
+				val = st.split('LIKE')[1];
+				new_disp += st.replace(val,$j('#sel_chg_company option[value='+val+']').text()).replace('u_visible_to_companiesLIKE','company contains ').replace('chg_','');
+			} else if(st.includes('ci_u_environment=')) {
+				val = st.split('=')[1];
+				new_disp += st.replace(val,$j('#sel_env option[value='+val+']').text()).replace('ci_u_environment','environment');
+			} else if(st.includes('ci_nameLIKE')) {
+				val = st.split('LIKE')[1];
+				new_disp += st.replace('ci_nameLIKE','ciname contains ');
+			} else if(st.includes('business_service')) {
+				new_disp = printFormat('solution',new_disp,st);
+			} else if(st.includes('solution_function')) {
+				new_disp = printFormat('solution_function',new_disp,st);
+			} else if(st.includes('solution_category')) {
+				val = st.split('=')[1];
+				new_disp += st.replace(val,$j('#sel_sol_cat option[value='+val+']').text()).replace('u_solution_category','solution category');
+			} else if(st.includes('short_description')) {
+				new_disp += st.replace('short_descriptionLIKE','short description contains ').replace('chg_','');
+		
+			//if we have service now interactive filter
+			} else if(st.includes('u_requested_for.department')) {
+				new_disp = printFormat('dep_req_for',new_disp,st);
+			} else if(st.includes('u_requested_for')) {
+				new_disp = printFormat('req_for',new_disp,st);
+			} else if(st.includes('opened_by')) {
+				new_disp = printFormat('req_by',new_disp,st);
+			} else if(st.includes('closed_by.department')) {
+				new_disp = printFormat('dep_closed_by',new_disp,st);
+			} else if(st.includes('caller_id.department')) {
+				new_disp = printFormat('dep_caller',new_disp,st);
+			} else if(st.includes('caller_id')) {
+				new_disp = printFormat('caller',new_disp,st);
+			} else if(st.includes('closed_by')) {
+				new_disp = printFormat('closed_by',new_disp,st);
+			} else if(st.includes('cat_item')) {
+				new_disp = printFormat('item',new_disp,st);
+			} else if(st.includes('assigned_to')) {
+				new_disp = printFormat('assigned_to',new_disp,st);
+			} else if(st.includes('assignment_group')) {
+				new_disp = printFormat('assignment_group',new_disp,st);
+			} else if(st.includes('company')) {
+				new_disp = printFormat('company',new_disp,st);
+			} else if(st.includes('coordinator_group')) {
+				new_disp = printFormat('coordinator_group',new_disp,st);
+			} else if(st.includes('problem_coordinator')) {
+				new_disp = printFormat('problem_coordinator',new_disp,st);
+			} else if(st.includes('manager_group')) {
+				new_disp = printFormat('manager_group',new_disp,st);
+			} else if(st.includes('ci_item')) {
+				new_disp = printFormat('ci',new_disp,st);
+			} else if(st.includes('chg_type')) {
+				new_disp += st.replace('chg_type','type');
+			} else if(st.includes('source')) {
+				new_disp += st.replace('u_source','source');
+			} else {
+				new_disp += st;
+			}
+
+			if(i &lt; disp.length-1 &amp;&amp; !disp[i+1].includes('OR')) {
+				new_disp += ' &amp; ';
+			}
+
+		}
+		
+		//own print of the filter next to the dasbhoard name
+		$j('#header_display_filter').text(new_disp);
+		
+		// for debug purposes (css class .debug_filter must be visible): show the real filter in a nicer view
+		$j('#debug_parsed_filter').val(final_filter);
+
+	}
+	
+	//print on screen service now interactive filter
+	function printFormat(label,new_disp,st) {
+		
+		if(st.includes('IN')) {
+			var arr = st.split('IN')[1].split(',');
+			var total = arr.length;
+		
+			new_disp += label+'=';
+
+			for(var j=0; j&lt;total; ++j) {
+				val = arr[j];
+				new_disp += val.replace(val,$j('li[id$='+val+']').text().trim());
+				if(j &lt; total-1) new_disp += ', ';
+			}
+		} else if(st.includes('=')) {
+			new_disp += label+'='+st.split('=')[1];
+		}
+		
+		return new_disp;
+	}
+
+	//service now onload method
+	function onLoad() {
+		
+		$j('.mult-enable-search').multiselect({
+			nonSelectedText: 'Filter',
+			numberDisplayed: 0,
+			enableCaseInsensitiveFiltering: true,
+			includeSelectAllOption: true,
+			disableIfEmpty: true,
+			includeResetOption: true
+        });
+
+		$j('.mult-disable-search').multiselect({
+			nonSelectedText: 'Filter',
+			numberDisplayed: 0,
+			includeSelectAllOption: true,
+			disableIfEmpty: true,
+			includeResetOption: true
+        });
+
+		$j('.mult-single-select').multiselect({
+			nonSelectedText: 'Filter',
+			numberDisplayed: 1
+		});
+
+		//used to reload filter when changing any dropdown selector
+		$j('.dash-body').on('change', function() {
+			combineFilterAndPrint();
+		});
+
+		//used to reload filter when clicking a piechart widget
+		$j('.dash-body').on('click', function() {
+			combineFilterAndPrint();
+		});
+
+	}
+	
+	//own customized selectors for multiselecting with equals
+	function getMultSel(id,filter) {
+		var res='';
+		$j('#'+id+' option:selected').each(function() {
+			res += (res == '') ? '^'+filter+'='+$j(this).val() : '^OR'+filter+'='+$j(this).val();
+		});
+		return res;
+	}
+	
+	//own customized selectors for multiselecting with a contains/like
+	function getMultSel_Like(id,filter) {
+		var res='';
+		$j('#'+id+' option:selected').each(function() {
+			if($j(this).val() == 'none'){
+				res += (res == '') ? '^'+filter+'ISEMPTY' : '^OR'+filter+'ISEMPTY';
+			} else {
+				res += (res == '') ? '^'+filter+'LIKE'+$j(this).val() : '^OR'+filter+'LIKE'+$j(this).val();
+			}
+		});
+		return res;
+	}
+	
+	//get all customized filters on reload
+	function getAllFilters() {
+		var filter = {};
+
+		if(my_msg.table == 'u_cmdb_task_chg' || my_msg.table == 'u_cmdb_task_service_chg') {
+			filter = {
+				type : gel('sel_type') != null &amp;&amp; gel('sel_type').value ? getMultSel('sel_type','chg_type') : '',
+				environment : gel('sel_env') != null &amp;&amp; gel('sel_env').value ? getMultSel('sel_env','ci_u_environment') : '',
+				state : gel('sel_state') != null &amp;&amp; gel('sel_state').value ? getMultSel('sel_state','chg_state') : '',
+				priority : gel('sel_prio') != null &amp;&amp; gel('sel_prio').value ? getMultSel('sel_prio','chg_priority') : '',
+				short_desc : gel('sel_shortdesc') != null &amp;&amp; gel('sel_shortdesc').value ? '^chg_short_descriptionLIKE'+$j('#sel_shortdesc').val() : '',
+				sel_sol_code : (my_msg.table == 'u_cmdb_task_chg')? (gel('sel_sol_code') != null &amp;&amp; gel('sel_sol_code').value ? getMultSel('sel_sol_code','affected_ci_item.ref_cmdb_ci_service.u_solution_code') : '') : (gel('sel_sol_code') != null &amp;&amp; gel('sel_sol_code').value ? getMultSel('sel_sol_code','impacted_ci_item.ref_cmdb_ci_service.u_solution_code') : ''),
+				//ci_name_contains : gel('sel_ciname') != null &amp;&amp; gel('sel_ciname').value ? '^ci_nameLIKE'+$j('#sel_ciname').val() : '',
+				//my_fav : gel('sel_myfav') != null &amp;&amp; gel('sel_myfav').value ? '^'+gel('sel_myfav').value : '',
+				company : gel('sel_chg_company') != null &amp;&amp; gel('sel_chg_company').value ? getMultSel_Like('sel_chg_company','chg_u_visible_to_companies') : '',
+
+			}
+		
+		} else {
+			
+			filter = {
+				//Multiselect fields
+				priority : gel('sel_prio') != null &amp;&amp; gel('sel_prio').value ? getMultSel('sel_prio','priority') : '',
+				short_desc : gel('sel_shortdesc') != null &amp;&amp; gel('sel_shortdesc').value ? '^short_descriptionLIKE'+$j('#sel_shortdesc').val() : '',
+				environment : gel('sel_env') != null &amp;&amp; gel('sel_env').value ? getMultSel_Like('sel_env','u_environment') : '',
+				type : gel('sel_type') != null &amp;&amp; gel('sel_type').value ? getMultSel('sel_type','type') : '',
+				state : gel('sel_state') != null &amp;&amp; gel('sel_state').value ? getMultSel('sel_state','state') : '',
+				approval : gel('sel_approval') != null &amp;&amp; gel('sel_approval').value ? getMultSel('sel_approval','approval') : '',
+				stage : gel('sel_stage') != null &amp;&amp; gel('sel_stage').value ? getMultSel('sel_stage','stage') : '',
+				group : gel('sel_group') != null &amp;&amp; gel('sel_group').value ? (my_msg.table == 'metric_instance') ? getMultSel('sel_group','value') : getMultSel('sel_group','assignment_group') : '',
+				source : gel('sel_source') != null &amp;&amp; gel('sel_source').value ? getMultSel('sel_source','u_source') : '',
+				sol_cat : gel('sel_sol_cat') != null &amp;&amp; gel('sel_sol_cat').value ? getMultSel('sel_sol_cat','u_solution_category') : '',
+				field_name : gel('sel_fieldname') != null &amp;&amp; gel('sel_fieldname').value ? getMultSel('sel_fieldname','his_u_field_display_name') : '',
+				disp : gel('sel_fieldvalue') != null &amp;&amp; gel('sel_fieldvalue').value ? getMultSel('sel_fieldvalue','his_u_new_display_value') : '',
+				ticket_id : gel('sel_ticketid') != null &amp;&amp; gel('sel_ticketid').value ? (my_msg.table == 'cmdb_task_chg') ? getMultSel('sel_ticketid','chg_number') : getMultSel('sel_ticketid','inc_number') : '',
+				company : gel('sel_chg_company') != null &amp;&amp; gel('sel_chg_company').value ? getMultSel_Like('sel_chg_company','u_visible_to_companies') : '',
+
+				//Single fields
+				//fav : gel('sel_fav') != null &amp;&amp; gel('sel_fav').value ? '^'+gel('sel_fav').value : '',
+				//my_fav : gel('sel_myfav') != null &amp;&amp; gel('sel_myfav').value ? '^'+gel('sel_myfav').value : '',
+			}
+		}
+		
+		var res='';
+		$j.each(filter,function(key,value) {
+			if(value) res+=value;
+		});
+
+		return res.substring(1);
+	}
+		
+	function enterReload(event) {
+		if(event.which == 13) {
+			reload();
+		}
+	}
+
+	
+	/* ------------------------------- Main Reload Dashboard function ------------------------------- */
+	function reload() {
+		my_msg.filter = getAllFilters();
+
+		SNC.canvas.interactiveFilters.setDefaultValue({
+			id: my_msg.id,
+			filters: [my_msg]
+		}, false);
+		
+		my_dash.publishMessage([{'table':my_msg.table,'filter':my_msg.filter}]);
+		
+		var json = gel('display_dashboard_messages2') != null &amp;&amp; gel('display_dashboard_messages2').value ? JSON.parse(gel('display_dashboard_messages2').value) : '';
+
+		var temp_filter = '';
+		for(var i=0; i &lt; json.length; i++) {
+			for(var j=0; j &lt; json[i].length; j++) {
+				//used for open date widget, which contains several table names
+				if(json[i][j].table == table &amp;&amp; json[i][j].filter != '') {
+					temp_filter = json[i][j].filter;
+					my_dash.publishMessage([{'table':my_msg.table,'filter':temp_filter}]);
+				}
+			}
+		}
+	}
+	
+	/* ------------------------------ end Main Reload Dashboard function ----------------------------- */
+	</script>
+
+    <div class='filter-wrapper'>
+
+<!-- ################################# INCIDENT ################################# -->
+	<div id='inc' class='inactive-tab'>
+		<g:evaluate var='jvar_states' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=incident^element=state^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'state':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_priorities' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=incident^element=priority^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'priority':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_environments' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('element=u_environment^name=cmdb_ci^language=en^inactive=False');
+			gr.query();
+			objs.push({'sys_id':'none','environment':'None'}); //manually added for empty environments
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('sys_id'),'environment':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_sources' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=incident^element=u_source^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'source':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_sol_categories' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=incident^element=u_solution_category^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'sol_cat':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>State</h4>
+				<select id='sel_state' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_states' items='${jvar_states}'>
+						<option value='${jvar_states.sys_id}'>${jvar_states.state}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Priority</h4>
+				<select id='sel_prio' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_priorities' items='${jvar_priorities}'>
+						<option value='${jvar_priorities.sys_id}'>${jvar_priorities.priority}</option>     
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Env</h4>
+				<select id='sel_env' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_environments' items='${jvar_environments}'>
+						<option value='${jvar_environments.sys_id}'>${jvar_environments.environment}</option>     
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Category</h4>
+				<select id='sel_sol_cat' multiple='' class='form-control mult-enable-search' onchange='reload()'>
+					<j:forEach var='jvar_sol_categories' items='${jvar_sol_categories}'>
+						<option value='${jvar_sol_categories.sys_id}'>${jvar_sol_categories.sol_cat}</option>
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Source</h4>
+				<select id='sel_source' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_sources' items='${jvar_sources}'>
+						<option value='${jvar_sources.sys_id}'>${jvar_sources.source}</option>       
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-4'>
+			<div class='panel-body'>
+				<h4>Short description</h4>
+				<span class='input-group lightweight-reference inline-form'>
+					<input id='sel_shortdesc' class='form-control' onkeydown='enterReload(event)' />
+					<span class='input-group-btn'><a id='searchDesc' class='icon-search btn btn-default sn-tooltip-basic' onclick='reload()' /></span>
+				</span>
+			</div>
+		</div>
+	</div>
+		
+<!-- ################################# PROBLEM ################################# -->
+	<div id='prb' class='inactive-tab'>
+		<g:evaluate var='jvar_prb_priorities' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=incident^element=priority^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'priority':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_environments' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('element=u_environment^name=cmdb_ci^language=en^inactive=False');
+			gr.query();
+			objs.push({'sys_id':'none','environment':'None'}); //manually added for empty environments
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('sys_id'),'environment':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_prb_states' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=problem^element=state^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'state':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>State</h4>
+				<select id='sel_state' multiple='' class='form-control mult-disable-search' onchange='reload();'>
+					<j:forEach var='jvar_prb_states' items='${jvar_prb_states}'>
+						<option value='${jvar_prb_states.sys_id}'>${jvar_prb_states.state}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Priority</h4>
+				<select id='sel_prio' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_prb_priorities' items='${jvar_prb_priorities}'>
+						<option value='${jvar_prb_priorities.sys_id}'>${jvar_prb_priorities.priority}</option>   
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Env</h4>
+				<select id='sel_env' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_environments' items='${jvar_environments}'>
+						<option value='${jvar_environments.sys_id}'>${jvar_environments.environment}</option>     
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-6'>
+			<div class='panel-body'>
+				<h4>Short description</h4>
+				<span class='input-group lightweight-reference inline-form'>
+					<input id='sel_shortdesc' class='form-control' onkeydown='enterReload(event)' />
+					<span class='input-group-btn'><a id='searchDesc' class='icon-search btn btn-default sn-tooltip-basic' onclick='reload()' /></span>
+				</span>
+			</div>
+		</div>
+	</div>
+		
+<!-- ################################# CHANGE ################################# -->
+	<div id='chg' class='inactive-tab'>
+		<g:evaluate var='jvar_chg_priorities' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=change_request^element=priority^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'priority':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_environments' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('element=u_environment^name=cmdb_ci^language=en^inactive=False');
+			gr.query();
+			objs.push({'sys_id':'none','environment':'None'}); //manually added for empty environments
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('sys_id'),'environment':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_chg_states' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=change_request^element=state^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'state':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_chg_type' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('element=type^name=change_request^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'type':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_chg_companies' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('core_company');
+			gr.addEncodedQuery('u_mandantISNOTEMPTY^nameISNOTEMPTY^u_activeINTrue^u_mandant!=undefined');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('sys_id'),'company':gr.getDisplayValue('name')});
+			}
+			objs;
+		</g:evaluate>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Type</h4>
+				<select id='sel_type' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_chg_type' items='${jvar_chg_type}'>
+						<option value='${jvar_chg_type.sys_id}'>${jvar_chg_type.type}</option>       
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Env</h4>
+				<select id='sel_env' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_environments' items='${jvar_environments}'>
+						<option value='${jvar_environments.sys_id}'>${jvar_environments.environment}</option>     
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>State</h4>
+				<select id='sel_state' multiple='' class='form-control mult-disable-search' onchange='reload();'>
+					<j:forEach var='jvar_chg_states' items='${jvar_chg_states}'>
+						<option value='${jvar_chg_states.sys_id}'>${jvar_chg_states.state}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Priority</h4>
+				<select id='sel_prio' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_chg_priorities' items='${jvar_chg_priorities}'>
+						<option value='${jvar_chg_priorities.sys_id}'>${jvar_chg_priorities.priority}</option>     
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Company</h4>
+				<select id='sel_chg_company' multiple='' class='form-control mult-enable-search' onchange='reload();'>
+					<j:forEach var='jvar_chg_companies' items='${jvar_chg_companies}'>
+						<option value='${jvar_chg_companies.sys_id}'>${jvar_chg_companies.company}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-4'>
+			<div class='panel-body'>
+				<h4>Short description</h4>
+				<span class='input-group lightweight-reference inline-form'>
+					<input id='sel_shortdesc' class='form-control' onkeydown='enterReload(event)' />
+					<span class='input-group-btn'><a id='searchDesc' class='icon-search btn btn-default sn-tooltip-basic' onclick='reload()' /></span>
+				</span>
+			</div>
+		</div>
+	</div>
+
+<!-- ################################# Change Affected CIs ################################# -->
+	<div id='chg_ci' class='inactive-tab'>
+
+		<g:evaluate var='jvar_chg_priorities' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=change_request^element=priority^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'priority':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_environments' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('element=u_environment^name=cmdb_ci^language=en^inactive=False');
+			gr.query();
+			objs.push({'sys_id':'none','environment':'None'}); //manually added for empty environments
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'environment':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_chg_states' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('name=change_request^element=state^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'state':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_chg_type' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('sys_choice');
+			gr.addEncodedQuery('element=type^name=change_request^language=en^inactive=False');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('label'),'type':gr.getDisplayValue('label')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_chg_companies' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('core_company');
+			gr.addEncodedQuery('u_mandantISNOTEMPTY^nameISNOTEMPTY^u_activeINTrue');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('sys_id'),'company':gr.getDisplayValue('name')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_sol_code' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideRecord('cmdb_ci_service');
+			gr.addEncodedQuery('u_solution_type=master^install_status!=7');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getDisplayValue('u_solution_code'),'solution':gr.getDisplayValue('u_solution_code') + ' - ' + gr.getDisplayValue('name')});
+			}
+			objs;
+		</g:evaluate>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Type</h4>
+				<select id='sel_type' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_chg_type' items='${jvar_chg_type}'>
+						<option value='${jvar_chg_type.sys_id}'>${jvar_chg_type.type}</option>       
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Env</h4>
+				<select id='sel_env' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_environments' items='${jvar_environments}'>
+						<option value='${jvar_environments.sys_id}'>${jvar_environments.environment}</option>     
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>State</h4>
+				<select id='sel_state' multiple='' class='form-control mult-disable-search' onchange='reload();'>
+					<j:forEach var='jvar_chg_states' items='${jvar_chg_states}'>
+						<option value='${jvar_chg_states.sys_id}'>${jvar_chg_states.state}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Priority</h4>
+				<select id='sel_prio' multiple='' class='form-control mult-disable-search' onchange='reload()'>
+					<j:forEach var='jvar_chg_priorities' items='${jvar_chg_priorities}'>
+						<option value='${jvar_chg_priorities.sys_id}'>${jvar_chg_priorities.priority}</option>     
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Company</h4>
+				<select id='sel_chg_company' multiple='' class='form-control mult-enable-search' onchange='reload();'>
+					<j:forEach var='jvar_chg_companies' items='${jvar_chg_companies}'>
+						<option value='${jvar_chg_companies.sys_id}'>${jvar_chg_companies.company}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Solution code</h4>
+				<select id='sel_sol_code' multiple='' class='form-control mult-enable-search' onchange='reload();'>
+					<j:forEach var='jvar_sol_code' items='${jvar_sol_code}'>
+						<option value='${jvar_sol_code.sys_id}'>${jvar_sol_code.solution}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-4'>
+			<div class='panel-body'>
+				<h4>Short description</h4>
+				<span class='input-group lightweight-reference inline-form'>
+					<input id='sel_shortdesc' class='form-control' onkeydown='enterReload(event)' />
+					<span class='input-group-btn'><a id='searchDesc' class='icon-search btn btn-default sn-tooltip-basic' onclick='reload()' /></span>
+				</span>
+			</div>
+		</div>
+	</div>
+			
+	<!-- ################################# REQUEST ################################# -->
+	<div id='req' class='inactive-tab'>
+		<g:evaluate var='jvar_req_states' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideAggregate('sc_req_item');
+			gr.addQuery('stateISNOTEMPTY');
+			gr.addAggregate('COUNT');
+			gr.groupBy('state');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('state'),'state':gr.getDisplayValue('state')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_req_approval' object='true' jelly='true'>
+			var objs = [];
+			//var gr= new GlideRecord('sys_choice');
+			//gr.addEncodedQuery('name=sc_request^element=request_state^language=en');
+			var gr= new GlideAggregate('sc_req_item');
+			gr.addAggregate('COUNT');
+			gr.groupBy('approval');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('approval'),'approval':gr.getDisplayValue('approval')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_req_stages' object='true' jelly='true'>
+			var objs = [];
+			//var gr= new GlideRecord('sys_choice');
+			//gr.addEncodedQuery('name=sc_request^element=stage^language=en');
+			var gr= new GlideAggregate('sc_req_item');
+			gr.addAggregate('COUNT');
+			gr.groupBy('stage');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('stage'),'stage':gr.getDisplayValue('stage')});
+			}
+			objs;
+		</g:evaluate>
+		<div class='col-md-3'>
+			<div class='panel-body'>
+				<h4>State</h4>
+				<select id='sel_state' multiple='' class='form-control mult-disable-search' onchange='reload();'>
+					<j:forEach var='jvar_req_states' items='${jvar_req_states}'>
+						<option value='${jvar_req_states.sys_id}'>${jvar_req_states.state}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-3'>
+			<div class='panel-body'>
+				<h4>Stage</h4>
+				<select id='sel_stage' multiple='' class='form-control mult-enable-search' onchange='reload();'>
+					<option value=''>All</option>
+					<j:forEach var='jvar_req_stages' items='${jvar_req_stages}'>
+						<option value='${jvar_req_stages.sys_id}'>${jvar_req_stages.stage}</option>       
+					</j:forEach>
+				</select>  
+			</div>
+		</div>
+		<div class='col-md-3'>
+			<div class='panel-body'>
+				<h4>Approval</h4>
+				<select id='sel_approval' multiple='' class='form-control mult-enable-search' onchange='reload();'>
+					<j:forEach var='jvar_req_approval' items='${jvar_req_approval}'>
+						<option value='${jvar_req_approval.sys_id}'>${jvar_req_approval.approval}</option>
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+	</div><!-- end req -->
+		
+<!-- ################################# Logged Fields ################################# -->
+	<div id='lg' class='inactive-tab'>
+		<g:evaluate var='jvar_groups' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideAggregate('metric_instance');
+			gr.addEncodedQuery('definition=39d43745c0a808ae0062603b77018b90^valueISNOTEMPTY');
+			gr.addAggregate('COUNT');
+			gr.groupBy('value');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('value'),'group':gr.getDisplayValue('value')});
+			}
+			objs;
+		</g:evaluate>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Group</h4>
+				<select id='sel_group' multiple='' class='form-control mult-enable-search' onchange='reload()'>
+					<j:forEach var='jvar_groups' items='${jvar_groups}'>
+						<option value='${jvar_groups.sys_id}'>${jvar_groups.group}</option>   
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-4'>
+			<div class='panel-body'>
+				<h4>Ticket SysID</h4>
+				<h5>(Ctrl+Click to the Ticket ID column, then copy paste here the sys_id from the URL)</h5>
+				<input type='text' name='Copy sys_id from column ID' id='sys_id' value = '' class='form-control' onchange='reload()'/>
+			</div>
+  		</div>
+	</div>
+		
+<!-- ################################# Historized fields ################################# -->
+	<div id='hf' class='inactive-tab'>
+		<g:evaluate var='jvar_fieldname' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideAggregate('u_incident_join_short_history_log');
+			gr.addAggregate('COUNT');
+			gr.groupBy('his_u_field_display_name');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('his_u_field_display_name'),'field_name':gr.getDisplayValue('his_u_field_display_name')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_fieldvalue' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideAggregate('u_incident_join_short_history_log');
+			gr.addQuery('his_u_new_display_valueISNOTEMPTY');
+			gr.addAggregate('COUNT');
+			gr.groupBy('his_u_new_display_value');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('his_u_new_display_value'),'st':gr.getDisplayValue('his_u_new_display_value')});
+			}
+			objs;
+		</g:evaluate>
+		<g:evaluate var='jvar_ticketid' object='true' jelly='true'>
+			var objs = [];
+			var gr= new GlideAggregate('u_incident_join_short_history_log');
+			gr.addAggregate('COUNT');
+			gr.groupBy('inc_number');
+			gr.query();
+			while(gr.next()){
+				objs.push({'sys_id': gr.getValue('inc_number'),'ticket_id':gr.getDisplayValue('inc_number')});
+			}
+			objs;
+		</g:evaluate>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Ticket ID</h4>
+				<select id='sel_ticketid' multiple='' class='form-control mult-enable-search' onchange='reload()'>
+					<j:forEach var='jvar_ticketid' items='${jvar_ticketid}'>
+						<option value='${jvar_ticketid.sys_id}'>${jvar_ticketid.ticket_id}</option>   
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Field Name</h4>
+				<select id='sel_fieldname' multiple='' class='form-control mult-enable-search' onchange='reload()'>
+					<j:forEach var='jvar_fieldname' items='${jvar_fieldname}'>
+						<option value='${jvar_fieldname.sys_id}'>${jvar_fieldname.field_name}</option>   
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+		<div class='col-md-2'>
+			<div class='panel-body'>
+				<h4>Field Value</h4>
+				<select id='sel_fieldvalue' multiple='' class='form-control mult-enable-search' onchange='reload()'>
+					<j:forEach var='jvar_fieldvalue' items='${jvar_fieldvalue}'>
+						<option value='${jvar_fieldvalue.sys_id}'>${jvar_fieldvalue.st}</option>   
+					</j:forEach>
+				</select>
+			</div>
+		</div>
+	</div>
+
+	</div><!-- end filter-wrapper -->
+  </body>
+  </html>
+
+</j:jelly>
